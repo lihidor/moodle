@@ -30,6 +30,8 @@
 
 defined('MOODLE_INTERNAL') || die();
 
+global $CFG;
+
 require_once($CFG->dirroot . '/mod/quiz/lib.php');
 require_once($CFG->dirroot . '/mod/quiz/accessmanager.php');
 require_once($CFG->dirroot . '/mod/quiz/accessmanager_form.php');
@@ -359,6 +361,7 @@ function quiz_attempt_save_started($quizobj, $quba, $attempt) {
     question_engine::save_questions_usage_by_activity($quba);
     $attempt->uniqueid = $quba->get_id();
     $attempt->id = $DB->insert_record('quiz_attempts', $attempt);
+    quiz_initialise_questions_pick($attempt->quiz, $attempt->uniqueid);
 
     // Params used by the events below.
     $params = array(
@@ -430,6 +433,7 @@ function quiz_delete_attempt($attempt, $quiz) {
     }
 
     question_engine::delete_questions_usage_by_activity($attempt->uniqueid);
+    $DB->delete_records('quiz_pickedquestions', ['questionusageid' => $attempt->uniqueid]);
     $DB->delete_records('quiz_attempts', array('id' => $attempt->id));
 
     // Log the deletion of the attempt if not a preview.
@@ -651,16 +655,32 @@ function quiz_has_feedback($quiz) {
  */
 function quiz_update_sumgrades($quiz) {
     global $DB;
+    $sumgrades = 0;
+    $sections = $DB->get_records('quiz_sections', ['quizid' => $quiz->id],
+        'firstslot desc', 'id, firstslot, numberofquestionstopick, overallmark');
+    $lastquizslotsql = "SELECT slot FROM {quiz_slots} WHERE quizid = ? ORDER BY slot desc LIMIT 1";
+    $lastslot = $DB->get_field_sql($lastquizslotsql, ['quizid' => $quiz->id]);
+    foreach ($sections as $section) {
+        $section->lastslot = $lastslot;
+        $lastslot = $section->firstslot - 1;
+    }
+    foreach ($sections as $section) {
+        if ($section->numberofquestionstopick > 0) {
+            $sumgrades += $section->overallmark;
+        } else {  // Compute the sum of all the questions' maxmark.
+            $questionssql = "SELECT sum(maxmark)
+                              FROM {quiz_slots}
+                              WHERE quizid = ?
+                              and slot between ? and ?";
+            $sumgrades += $DB->get_field_sql($questionssql, [$quiz->id, $section->firstslot, $section->lastslot]);
+        }
+    }
 
     $sql = 'UPDATE {quiz}
-            SET sumgrades = COALESCE((
-                SELECT SUM(maxmark)
-                FROM {quiz_slots}
-                WHERE quizid = {quiz}.id
-            ), 0)
+            SET sumgrades = ?
             WHERE id = ?';
-    $DB->execute($sql, array($quiz->id));
-    $quiz->sumgrades = $DB->get_field('quiz', 'sumgrades', array('id' => $quiz->id));
+    $DB->execute($sql, [$sumgrades, $quiz->id]);
+    $quiz->sumgrades = $DB->get_field('quiz', 'sumgrades', ['id' => $quiz->id]);
 
     if ($quiz->sumgrades < 0.000005 && quiz_has_attempts($quiz->id)) {
         // If the quiz has been attempted, and the sumgrades has been
@@ -673,6 +693,7 @@ function quiz_update_sumgrades($quiz) {
     foreach ($callbackclasses as $callbackclass) {
         component_class_callback($callbackclass, 'callback', [$quiz->id]);
     }
+    return ($quiz->sumgrades);
 }
 
 /**
@@ -1522,6 +1543,13 @@ function quiz_get_flag_option($attempt, $context) {
     }
 }
 
+function quiz_get_sections_pick ($slots) {
+    $slotspick = [];
+    foreach ($slots as $slot) {
+        $slotspick[$slot->slot] = $slot->section->numberofquestionstopick;
+    }
+    return ($slotspick);
+}
 /**
  * Work out what state this quiz attempt is in - in the sense used by
  * quiz_get_review_options, not in the sense of $attempt->state.
@@ -1552,11 +1580,17 @@ function quiz_attempt_state($quiz, $attempt) {
  *
  * @return mod_quiz_display_options
  */
-function quiz_get_review_options($quiz, $attempt, $context) {
+function quiz_get_review_options($quiz, $attempt, $context, $slots=null) {
     $options = mod_quiz_display_options::make_from_quiz($quiz, quiz_attempt_state($quiz, $attempt));
 
     $options->readonly = true;
     $options->flags = quiz_get_flag_option($attempt, $context);
+    if ($quiz->navmethod == QUIZ_NAVMETHOD_FREE) {
+        $options->picks = quiz_get_sections_pick($slots);
+        $options->showpickbuttoninreadonly = false;
+    } else {
+        $options->picks = [];
+    }
     if (!empty($attempt->id)) {
         $options->questionreviewlink = new moodle_url('/mod/quiz/reviewquestion.php',
                 array('attempt' => $attempt->id));
@@ -2092,6 +2126,29 @@ function quiz_get_js_module() {
     );
 }
 
+/**
+ * returns the maxmark for a slot in a section with a posibillity to pick questions
+ **/
+function set_slot_in_section_maxmark($quizid, $slotid) {
+    global $DB;
+    $slot = $DB->get_field('quiz_slots', 'slot', ['id' => $slotid]);
+    $sections = $DB->get_records('quiz_sections', ['quizid' => $quizid], 'firstslot');
+    $maxmark = null;
+    foreach ($sections as $section) {
+        if ($section->firstslot <= $slot) {  // If the first slot < our slot this may be the section our slot is in.
+            if ($section->numberofquestionstopick > 0) {
+                $maxmark = $section->overallmark / $section->numberofquestionstopick;
+            }
+        } else { // The last section that has a first slot < our slot is the section our slot is in.
+            break;
+        }
+    }
+
+    if ($maxmark) {
+        $DB->set_field('quiz_slots', 'maxmark', $maxmark, ['quizid' => $quizid, 'id' => $slotid]);
+    }
+
+}
 
 /**
  * An extension of question_display_options that includes the extra options used
@@ -2434,6 +2491,7 @@ function quiz_add_quiz_question($questionid, $quiz, $page = 0, $maxmark = null) 
     }
 
     $slotid = $DB->insert_record('quiz_slots', $slot);
+    set_slot_in_section_maxmark($quiz->id, $slotid);
 
     // Update or insert record in question_reference table.
     $sql = "SELECT DISTINCT qr.id, qr.itemid
@@ -2880,4 +2938,34 @@ function quiz_create_attempt_handling_errors($attemptid, $cmid = null) {
     } else {
         return $attempobj;
     }
+}
+
+function quiz_initialise_questions_pick($quizid, $uniqueid) {
+    global $DB;
+    $slots = $DB->get_records('quiz_slots', ['quizid' => $quizid]);
+    foreach ($slots as $slot) {
+        $record = new stdClass();
+        $record->questionusageid = $uniqueid;
+        $record->slot = $slot->slot;
+        $record->picked = 0;
+        $record->id = $DB->insert_record('quiz_pickedquestions', $record);
+    }
+}
+
+function is_slot_pickable($quiz, $slot) {
+    global $DB;
+    $sections = $DB->get_records('quiz_sections', ['quizid' => $quiz], 'id desc',
+        'id, firstslot, numberofquestionstopick, overallmark');
+    $lastquizslotsql = "SELECT id FROM {quiz_slots} WHERE quizid = ? ORDER BY id desc LIMIT 1";
+    $lastslot = $DB->get_field_sql($lastquizslotsql, ['quizid' => $quiz]);
+    foreach ($sections as $section) {
+        $section->lastslot = $lastslot;
+        $lastslot = $section->firstslot - 1;
+    }
+    foreach ($sections as $section) {
+        if ($slot >= $section->firstslot && $slot <= $section->lastslot) {
+            return $section->numberofquestionstopick;
+        }
+    }
+    return null;
 }

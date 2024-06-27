@@ -459,6 +459,10 @@ abstract class question_engine {
     public static function initialise_js() {
         return question_flags::initialise_js();
     }
+
+    public static function initialise_picks_js() {
+        return question_picks::initialise_js();
+    }
 }
 
 
@@ -813,6 +817,99 @@ abstract class question_flags {
     }
 }
 
+/**
+ * Contains the logic for handling question picks.
+ *
+ * @copyright  2021 Tel-Aviv University
+ */
+abstract class question_picks {
+    /**
+     * Get the checksum that validates that a toggle request is valid.
+     * @param int $qubaid the question usage id.
+     * @param int $questionid the question id.
+     * @param int $sessionid the question_attempt id.
+     * @param object $user the user. If null, defaults to $USER.
+     * @return string that needs to be sent to question/toggleflag.php for it to work.
+     */
+    protected static function get_toggle_checksum($qubaid, $questionid,
+                                                  $qaid, $slot, $user = null) {
+        if (is_null($user)) {
+            global $USER;
+            $user = $USER;
+        }
+        return md5($qubaid . "_" . $user->secret . "_" . $questionid . "_" . $qaid . "_" . $slot);
+    }
+
+    /**
+     * Get the postdata that needs to be sent to question/togglepick.php to change the flag state.
+     * You need to append &newstate=0/1 to this.
+     * @return the post data to send.
+     */
+    public static function get_postdata(question_attempt $qa) {
+        $qaid = $qa->get_database_id();
+        $qubaid = $qa->get_usage_id();
+        $qid = $qa->get_question()->id;
+        $slot = $qa->get_slot();
+        $checksum = self::get_toggle_checksum($qubaid, $qid, $qaid, $slot);
+        return "qaid={$qaid}&qubaid={$qubaid}&qid={$qid}&slot={$slot}&checksum={$checksum}&sesskey=" .
+            sesskey() . '&newstate=';
+    }
+
+    /**
+     * If the request seems valid, update the pick state of a question attempt.
+     * Throws exceptions if this is not a valid update request.
+     * @param int $qubaid the question usage id.
+     * @param int $questionid the question id.
+     * @param int $sessionid the question_attempt id.
+     * @param string $checksum checksum, as computed by {@link get_toggle_checksum()}
+     *      corresponding to the last three arguments.
+     * @param bool $newstate the new state of the flag. true = flagged.
+     */
+    public static function update_pick($qubaid, $questionid, $qaid, $slot, $checksum, $newstate) {
+        // Check the checksum - it is very hard to know who a question session belongs
+        // to, so we require that checksum parameter is matches an md5 hash of the
+        // three ids and the users username. Since we are only updating a pick, that
+        // probably makes it sufficiently difficult for malicious users to toggle
+        // other users flags.
+        if ($checksum != self::get_toggle_checksum($qubaid, $questionid, $qaid, $slot)) {
+            throw new moodle_exception('errorsavingpicks', 'question');
+        }
+
+        $dm = new question_engine_data_mapper();
+        $dm->update_question_attempt_pick($qubaid, $questionid, $qaid, $slot, $newstate);
+    }
+
+    public static function initialise_js() {
+        global $CFG, $PAGE;
+        static $done = false;
+        if ($done) {
+            return;
+        }
+        $module = array(
+            'name' => 'core_question_picks',
+            'fullpath' => '/question/picks.js',
+            'requires' => array('base', 'dom', 'event-delegate', 'io-base'),
+        );
+        $actionurl = $CFG->wwwroot . '/question/togglepick.php';
+        $pickclass = array(
+            0 => 'pickbutton',
+            1 => 'pickedbutton'
+        );
+        $pickattributes = array(
+            0 => array(
+                'title' => get_string('clickpick', 'question'),
+                'value' => get_string('pick', 'question'),
+            ),
+            1 => array(
+                'title' => get_string('clickunpick', 'question'),
+                'value' => get_string('unpick', 'question'),
+                ),
+        );
+        $PAGE->requires->js_init_call('M.core_question_picks.init',
+            array($actionurl, $pickattributes, $pickclass), false, $module);
+        $done = true;
+    }
+}
 
 /**
  * Exception thrown when the system detects that a student has done something

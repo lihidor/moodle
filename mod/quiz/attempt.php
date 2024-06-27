@@ -33,7 +33,7 @@ if ($id = optional_param('id', 0, PARAM_INT)) {
         throw new \moodle_exception('invalidquizid', 'quiz');
     }
     redirect(new moodle_url('/mod/quiz/startattempt.php',
-            array('cmid' => $cm->id, 'sesskey' => sesskey())));
+            ['cmid' => $cm->id, 'sesskey' => sesskey()]));
 }
 
 // Get submitted parameters.
@@ -83,10 +83,10 @@ if ($attemptobj->is_finished()) {
 $accessmanager = $attemptobj->get_access_manager(time());
 $accessmanager->setup_attempt_page($PAGE);
 $output = $PAGE->get_renderer('mod_quiz');
-$messages = $accessmanager->prevent_access();
-if (!$attemptobj->is_preview_user() && $messages) {
+$preventaccessmessages = $accessmanager->prevent_access();
+if (!$attemptobj->is_preview_user() && $preventaccessmessages) {
     throw new \moodle_exception('attempterror', 'quiz', $attemptobj->view_url(),
-            $output->access_messages($messages));
+            $output->access_messages($preventaccessmessages));
 }
 if ($accessmanager->is_preflight_check_required($attemptobj->get_attemptid())) {
     redirect($attemptobj->start_attempt_url(null, $page));
@@ -96,7 +96,7 @@ if ($accessmanager->is_preflight_check_required($attemptobj->get_attemptid())) {
 $autosaveperiod = get_config('quiz', 'autosaveperiod');
 if ($autosaveperiod) {
     $PAGE->requires->yui_module('moodle-mod_quiz-autosave',
-            'M.mod_quiz.autosave.init', array($autosaveperiod));
+            'M.mod_quiz.autosave.init', [$autosaveperiod]);
 }
 
 // Log this page view.
@@ -135,5 +135,9 @@ if ($attemptobj->is_last_page($page)) {
 } else {
     $nextpage = $page + 1;
 }
-
-echo $output->attempt_page($attemptobj, $page, $accessmanager, $messages, $slots, $id, $nextpage);
+$navmethod = $attemptobj->get_navigation_method();
+$attemptsallowed = $attemptobj->get_num_attempts_allowed();
+$shuffleanswers = $attemptobj->get_quiz()->shuffleanswers;
+$shufflequestionsinfo = $attemptobj->get_shuffle_questions_info();
+echo $output->attempt_page($attemptobj, $page, $accessmanager, $preventaccessmessages, $slots, $id,
+    $nextpage, $navmethod, $attemptsallowed, $shuffleanswers, $shufflequestionsinfo);

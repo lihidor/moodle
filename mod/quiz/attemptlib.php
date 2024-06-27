@@ -124,7 +124,7 @@ class quiz {
         global $DB;
 
         $quiz = quiz_access_manager::load_quiz_and_settings($quizid);
-        $course = $DB->get_record('course', array('id' => $quiz->course), '*', MUST_EXIST);
+        $course = $DB->get_record('course', ['id' => $quiz->course], '*', MUST_EXIST);
         $cm = get_coursemodule_from_instance('quiz', $quiz->id, $course->id, false, MUST_EXIST);
 
         // Update quiz with override information.
@@ -581,6 +581,22 @@ class quiz {
 
         return $questiontypes;
     }
+
+    public function shuffle_questions_info() {
+        $sections = $this->get_sections();
+        $shufflequestionsinfo = get_string('infoshufflequestions', 'quiz');
+        $i = 1;
+        foreach ($sections as $section) {
+            if ($section->shufflequestions) {
+                $shufflequestionsinfo .= get_string('section', 'quiz') .' ' .$i .' - ' .get_string('yes', 'moodle') .'.  ';
+            } else {
+                $shufflequestionsinfo .= get_string('section', 'quiz') .' ' .$i .' - ' .get_string('no', 'moodle') .'.  ';
+            }
+            $i += 1;
+        }
+        return($shufflequestionsinfo);
+    }
+
 }
 
 
@@ -1153,9 +1169,13 @@ class quiz_attempt {
      */
     public function get_display_options($reviewing) {
         if ($reviewing) {
+            $slots = [];
+            if (!is_null($this->slots)) {
+                $slots = $this->slots;
+            }
             if (is_null($this->reviewoptions)) {
                 $this->reviewoptions = quiz_get_review_options($this->get_quiz(),
-                        $this->attempt, $this->quizobj->get_context());
+                        $this->attempt, $this->quizobj->get_context(), $slots);
                 if ($this->is_own_preview()) {
                     // It should  always be possible for a teacher to review their
                     // own preview irrespective of the review options settings.
@@ -1168,6 +1188,11 @@ class quiz_attempt {
             $options = mod_quiz_display_options::make_from_quiz($this->get_quiz(),
                     mod_quiz_display_options::DURING);
             $options->flags = quiz_get_flag_option($this->attempt, $this->quizobj->get_context());
+            if ($this->get_navigation_method() == QUIZ_NAVMETHOD_FREE) {
+                $options->picks = quiz_get_sections_pick($this->slots);
+            } else {
+                $options->picks = [];
+            }
             return $options;
         }
     }
@@ -1304,6 +1329,21 @@ class quiz_attempt {
     }
 
     /**
+     * Get all the slots in a section of the quiz that are really a question.
+     * @param int $sectionid the section id.
+     * @return int[] slot numbers.
+     */
+    public function get_real_questions_in_section($sectionid) {
+        $questionsno = 0;
+        foreach ($this->slots as $slot) {
+            if ($slot->section->id == $sectionid  && $this->is_real_question($slot->slot)) {
+                $questionsno++;
+            }
+        }
+        return $questionsno;
+    }
+
+    /**
      * Is a particular question in this attempt a real question, or something like a description.
      *
      * @param int $slot the number used to identify this question within this attempt.
@@ -1311,6 +1351,16 @@ class quiz_attempt {
      */
     public function is_question_flagged($slot) {
         return $this->quba->get_question_attempt($slot)->is_flagged();
+    }
+
+    /**
+     * Is a particular question in this attempt had been picked by the student.
+     *
+     * @param int $slot the number used to identify this question within this attempt.
+     * @return bool whether that question had been picked.
+     */
+    public function is_question_picked($slot) {
+        return $this->quba->get_question_attempt($slot)->is_picked();
     }
 
     /**
@@ -1367,6 +1417,10 @@ class quiz_attempt {
         return $this->questionnumbers[$slot];
     }
 
+    public function is_first_slot($slot) {
+        return ($this->slots[$slot]->firstinsection);
+    }
+
     /**
      * If the section heading, if any, that should come just before this slot.
      *
@@ -1379,6 +1433,68 @@ class quiz_attempt {
         } else {
             return null;
         }
+    }
+
+    /**
+     * function returns information on section's questions pick
+     * @param int $slot identifies a particular question in this quiz.
+     */
+    public function get_section_questions_pick($slot) {
+        global $OUTPUT;
+        $output = '';
+        $questionstopick = $this->slots[$slot]->section->numberofquestionstopick;
+        if ($questionstopick) {
+            $a = new stdClass();
+            $a->allquestions = $this->get_real_questions_in_section($this->slots[$slot]->section->id);
+            $a->questionstopick = $questionstopick;
+            $questionspicktext = get_string('questionstopick', 'quiz', $a);
+            $output .= $questionspicktext;
+            $questionspickhelp = new help_icon('questionspickhelp', 'mod_quiz');
+            $output .= $OUTPUT->render($questionspickhelp);
+        }
+        return($output);
+    }
+
+
+    /**
+     * function returns information on section's questions pick
+     * @param int $slot identifies a particular question in this quiz. */
+    public function short_notice_questions_pick($slot) {
+        $questionstopick = $this->slots[$slot]->section->numberofquestionstopick;
+        if ($questionstopick) {
+            $a = new stdClass();
+            $a->allquestions = $this->get_real_questions_in_section($this->slots[$slot]->section->id);
+            $a->questionstopick = $questionstopick;
+            return(get_string('questionstopick_short', 'quiz', $a));
+        }
+    }
+
+    /**
+     * function returns the number of questions a student has to pick in the section this slot is in or null
+     * for a section with no choices
+     * @param $slot
+     * @return mixed
+     */
+    public function section_no_of_questions_to_pick($slot) {
+        return ($this->slots[$slot]->section->numberofquestionstopick);
+    }
+
+    /**
+     * function checks if student picked the number of questions that was required
+     * @param int $slot identifies a particular question in this quiz.
+     * returns true if the number of picked questions is lager then/equals the number of required questions
+     **/
+    public function picked_questions($slot) {
+        $questionspicked = [];
+        $slots = $this->get_slots();
+        $firstslot = $this->slots[$slot]->section->firstslot;
+        $lastslot = $this->slots[$slot]->section->lastslot;
+        foreach ($slots as $slot) {
+            if ($this->is_question_picked($slot) && $slot >= $firstslot && $slot <= $lastslot) {
+                $questionspicked[] = $slot;
+            }
+        }
+        return($questionspicked);
     }
 
     /**
@@ -1687,6 +1803,7 @@ class quiz_attempt {
             $result .= $this->quba->render_question_head_html($slot);
         }
         $result .= question_engine::initialise_js();
+        $result .= question_engine::initialise_picks_js();
         return $result;
     }
 
@@ -1698,7 +1815,8 @@ class quiz_attempt {
      */
     public function get_question_html_head_contributions($slot) {
         return $this->quba->render_question_head_html($slot) .
-                question_engine::initialise_js();
+                question_engine::initialise_js() .
+                question_engine::initialise_picks_js();
     }
 
     /**
@@ -1757,6 +1875,7 @@ class quiz_attempt {
      */
     protected function render_question_helper($slot, $reviewing, $thispageurl,
             mod_quiz_renderer $renderer, $seq) {
+        global $OUTPUT;
         $originalslot = $this->get_original_slot($slot);
         $number = $this->get_question_number($originalslot);
         $displayoptions = $this->get_display_options_with_edit_link($reviewing, $slot, $thispageurl);
@@ -1769,6 +1888,7 @@ class quiz_attempt {
         if ($this->can_question_be_redone_now($slot)) {
             $displayoptions->extrainfocontent = $renderer->redo_question_button(
                     $slot, $displayoptions->readonly);
+            $displayoptions->showpickbuttoninreadonly = true;
         }
 
         if ($displayoptions->history && $displayoptions->questionreviewlink) {
@@ -1778,11 +1898,23 @@ class quiz_attempt {
                         get_string('redoesofthisquestion', 'quiz', $renderer->render($links)));
             }
         }
-
-        if ($seq === null) {
-            $output = $this->quba->render_question($slot, $displayoptions, $number);
+        $output = '';
+        $heading = $this->get_heading_before_slot($originalslot);
+        if ($heading) {
+            $output .= $renderer->render_quiz_section_heading($heading);
+        }
+        if (!$reviewing) {
+            $questionstopicktext = $this->get_section_questions_pick($originalslot);
         } else {
-            $output = $this->quba->render_question_at_step($slot, $seq, $displayoptions, $number);
+            $questionstopicktext = $this->short_notice_questions_pick($originalslot);
+        }
+        if ($questionstopicktext) {
+            $output .= $renderer->render_quiz_section_questions_pick($questionstopicktext);
+        }
+        if ($seq === null) {
+            $output .= $this->quba->render_question($slot, $displayoptions, $number);
+        } else {
+            $output .= $this->quba->render_question_at_step($slot, $seq, $displayoptions, $number);
         }
 
         if ($slot != $originalslot) {
@@ -2200,7 +2332,7 @@ class quiz_attempt {
 
         $this->attempt->timemodified = $timestamp;
         $this->attempt->timefinish = $timefinish ?? $timestamp;
-        $this->attempt->sumgrades = $this->quba->get_total_mark();
+        $this->attempt->sumgrades = $this->quba->get_total_mark($this->attempt->quiz);
         $this->attempt->state = self::FINISHED;
         $this->attempt->timecheckstate = null;
         $this->attempt->gradednotificationsenttime = null;
@@ -2301,8 +2433,8 @@ class quiz_attempt {
             'other' => array(
                 'submitterid' => CLI_SCRIPT ? null : $USER->id,
                 'quizid' => $quizrecord->id,
-                'studentisonline' => $studentisonline
-            )
+                'studentisonline' => $studentisonline,
+            ),
         );
         $event = $eventclass::create($params);
         $event->add_record_snapshot('quiz', $this->get_quiz());
@@ -2564,8 +2696,8 @@ class quiz_attempt {
             'context' => context_module::instance($this->get_cmid()),
             'other' => array(
                 'quizid' => $this->get_quizid(),
-                'page' => $this->get_currentpage()
-            )
+                'page' => $this->get_currentpage(),
+            ),
         );
         $event = \mod_quiz\event\attempt_viewed::create($params);
         $event->add_record_snapshot('quiz_attempts', $this->get_attempt());
@@ -2585,8 +2717,8 @@ class quiz_attempt {
             'context' => context_module::instance($this->get_cmid()),
             'other' => [
                 'quizid' => $this->get_quizid(),
-                'page' => $this->get_currentpage()
-            ]
+                'page' => $this->get_currentpage(),
+            ],
         ];
         $event = \mod_quiz\event\attempt_updated::create($params);
         $event->add_record_snapshot('quiz_attempts', $this->get_attempt());
@@ -2606,8 +2738,8 @@ class quiz_attempt {
             'context' => context_module::instance($this->get_cmid()),
             'other' => [
                 'quizid' => $this->get_quizid(),
-                'page' => $this->get_currentpage()
-            ]
+                'page' => $this->get_currentpage(),
+            ],
         ];
         $event = \mod_quiz\event\attempt_autosaved::create($params);
         $event->add_record_snapshot('quiz_attempts', $this->get_attempt());
@@ -2631,8 +2763,8 @@ class quiz_attempt {
                 'quizid' => $this->get_quizid(),
                 'page' => $this->get_currentpage(),
                 'slot' => $slot,
-                'newquestionid' => $newquestionid
-            ]
+                'newquestionid' => $newquestionid,
+            ],
         ];
         $event = \mod_quiz\event\attempt_question_restarted::create($params);
         $event->add_record_snapshot('quiz_attempts', $this->get_attempt());
@@ -2652,8 +2784,8 @@ class quiz_attempt {
             'courseid' => $this->get_courseid(),
             'context' => context_module::instance($this->get_cmid()),
             'other' => array(
-                'quizid' => $this->get_quizid()
-            )
+                'quizid' => $this->get_quizid(),
+            ),
         );
         $event = \mod_quiz\event\attempt_summary_viewed::create($params);
         $event->add_record_snapshot('quiz_attempts', $this->get_attempt());
@@ -2673,8 +2805,8 @@ class quiz_attempt {
             'courseid' => $this->get_courseid(),
             'context' => context_module::instance($this->get_cmid()),
             'other' => array(
-                'quizid' => $this->get_quizid()
-            )
+                'quizid' => $this->get_quizid(),
+            ),
         );
         $event = \mod_quiz\event\attempt_reviewed::create($params);
         $event->add_record_snapshot('quiz_attempts', $this->get_attempt());
@@ -2691,8 +2823,8 @@ class quiz_attempt {
             'courseid' => $this->get_courseid(),
             'context' => context_module::instance($this->get_cmid()),
             'other' => [
-                'quizid' => $this->get_quizid()
-            ]
+                'quizid' => $this->get_quizid(),
+            ],
         ];
 
         $event = \mod_quiz\event\attempt_manual_grading_completed::create($params);
@@ -2736,6 +2868,11 @@ class quiz_attempt {
         }
         return $totalunanswered;
     }
+
+    public function get_shuffle_questions_info() {
+        return $this->quizobj->shuffle_questions_info();
+    }
+
 }
 
 
@@ -2759,6 +2896,18 @@ class quiz_nav_section_heading implements renderable {
     }
 }
 
+class quiz_nav_section_pick_info implements renderable {
+    /** @var string the pickinfo text. */
+    public $pickinfo;
+
+    /**
+     * Constructor.
+     * @param string $heading the heading text
+     */
+    public function __construct($pickinfo) {
+        $this->pickinfo = $pickinfo;
+    }
+}
 
 /**
  * Represents a single link in the navigation panel.
@@ -2782,6 +2931,8 @@ class quiz_nav_question_button implements renderable {
     public $currentpage;
     /** @var bool true if this question has been flagged. */
     public $flagged;
+    /** @var bool true if this question has been picked by the student. */
+    public $picked;
     /** @var moodle_url the link this button goes to, or null if there should not be a link. */
     public $url;
     /** @var int QUIZ_NAVMETHOD_FREE or QUIZ_NAVMETHOD_SEQ. */
@@ -2823,12 +2974,11 @@ abstract class quiz_nav_panel_base {
     public function get_question_buttons() {
         $buttons = array();
         foreach ($this->attemptobj->get_slots() as $slot) {
-            $heading = $this->attemptobj->get_heading_before_slot($slot);
-            if (!is_null($heading)) {
-                $sections = $this->attemptobj->get_quizobj()->get_sections();
-                if (!(empty($heading) && count($sections) == 1)) {
+            if ($this->attemptobj->is_first_slot($slot)) {
+                if ($heading = $this->attemptobj->get_heading_before_slot($slot)) {
                     $buttons[] = new quiz_nav_section_heading(format_string($heading));
                 }
+                $buttons[] = new quiz_nav_section_pick_info($this->attemptobj->short_notice_questions_pick($slot));
             }
 
             $qa = $this->attemptobj->get_question_attempt($slot);
@@ -2846,6 +2996,7 @@ abstract class quiz_nav_panel_base {
             $button->page        = $this->attemptobj->get_question_page($slot);
             $button->currentpage = $this->showall || $button->page == $this->page;
             $button->flagged     = $qa->is_flagged();
+            $button->picked      = $qa->is_picked();
             $button->url         = $this->get_question_url($slot);
             if ($this->attemptobj->is_blocked_by_previous_question($slot)) {
                 $button->url = null;

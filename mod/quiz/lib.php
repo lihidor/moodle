@@ -99,8 +99,9 @@ function quiz_add_instance($quiz) {
     $quiz->id = $DB->insert_record('quiz', $quiz);
 
     // Create the first section for this quiz.
+    $firstheading = get_string('newsectionheading',  'quiz') .' 1';
     $DB->insert_record('quiz_sections', array('quizid' => $quiz->id,
-            'firstslot' => 1, 'heading' => '', 'shufflequestions' => 0));
+            'firstslot' => 1, 'heading' => $firstheading, 'shufflequestions' => 0));
 
     // Do the processing required after an add or an update.
     quiz_after_add_or_update($quiz);

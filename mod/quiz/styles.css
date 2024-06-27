@@ -102,6 +102,11 @@
     clear: both;
 }
 
+.path-mod-quiz #mod_quiz_navblock p.mod_quiz-section-pick_info {
+    font-size: 0.7em;
+    color: grey;
+}
+
 .path-mod-quiz #mod_quiz_navblock h3.mod_quiz-section-heading:first-child {
     padding-top: 0;
 }
@@ -464,6 +469,7 @@ table.quizreviewsummary td.cell {
 #page-mod-quiz-report table#attempts .header,
 #page-mod-quiz-report table#attempts .cell {
     padding: 4px;
+    border: 1px solid grey;
 }
 
 #page-mod-quiz-report table#attempts .header .commands {
@@ -600,7 +606,7 @@ table.quizreviewsummary td.cell {
 #page-mod-quiz-edit .section-heading {
     margin-left: 20px;
     margin-bottom: 0;
-    height: 40px;
+    height: 80px;
 }
 
 #page-mod-quiz-edit .section-heading .instancesectioncontainer {
@@ -610,7 +616,7 @@ table.quizreviewsummary td.cell {
 
 #page-mod-quiz-edit .section-heading .instancesectioncontainer h3 {
     display: inline;
-    color: #555;
+    color: #999;
 }
 
 #page-mod-quiz-edit .section-heading .editing_section,
@@ -712,6 +718,12 @@ table.quizreviewsummary td.cell {
 
 #page-mod-quiz-edit ul.slots li.section li.activity .instancemaxmarkcontainer form {
     display: inline;
+}
+
+#page-mod-quiz-edit ul.slots li.section li.activity .instancemaxmarkcontainer form input {
+    margin: 0;
+    padding: 0.2em;
+    height: 2.5em;
 }
 
 #page-mod-quiz-edit ul.slots li.section li.activity .instancemaxmark {
@@ -1174,4 +1186,124 @@ table#categoryquestions {
     #page-mod-quiz-review .que {
         page-break-inside: avoid;
     }
+}
+
+#page-mod-quiz-attempt .timenotification {
+    padding: 3px;
+    margin-bottom: 10px;
+    width: 100%;
+    color: #333300;
+    background-color: #ffffcc;
+}
+#page-mod-quiz-summary .pickspan {
+    color: green;
+    padding: 1em;
+}
+
+#page-mod-quiz-summary .pickspanred {
+    color: red;
+    padding: 1em;
+}
+
+#page-mod-quiz-edit ul.slots div.section-set-questions-pick {
+    width: 90%;
+    height: 35px;
+    margin-left: 20px;
+    margin-bottom: 0;
+    background-color: #e6f2ff;
+}
+#page-mod-quiz-edit ul.slots div.section-set-questions-pick div.section-questions-pick {
+    margin-left: 10px;
+}
+
+
+#page-mod-quiz-edit ul.slots li.section div.content div.section-set-questions-pick
+div.section-questions-pick input.section-without-pick,
+#page-mod-quiz-edit ul.slots li.section div.content div.section-set-questions-pick
+div.section-questions-pick span.section-without-pick {
+    visibility: hidden;
+}
+
+#page-mod-quiz-edit ul.slots li.section li.activity .editing_maxmark.section-overall-mark {
+    visibility: hidden;
+}
+
+#page-mod-quiz-edit ul.slots li.section.not-enough-for-pick li.activity .editing_move,
+#page-mod-quiz-edit ul.slots li.section.not-enough-for-pick li.activity .editing_delete {
+    visibility: hidden;
+}
+
+#page-mod-quiz-edit ul.slots.only-one-section li.section.not-enough-for-pick li.activity .editing_delete {
+    visibility: visible;
+}
+
+.path-mod-quiz h3.mod_quiz-startsection {
+    color: #330;
+    background-color: #b3b3b3;
+}
+
+.path-mod-quiz div.mod_quiz-section-questionspick {
+    background-color: #e6e6e6;
+    margin-bottom: 1em;
+    padding: 0.2em;
+}
+
+.path-mod-quiz .infopick {
+    width: 7em;
+    float: left;
+}
+
+.path-mod-quiz .pick {
+    float: inherit;
+    width: 7em;
+    padding: 0.2em;
+}
+
+.path-mod-quiz .pickbutton {
+    margin: 0.7em 0;
+    text-align: center;
+    background: white;
+    font-size: 16px;
+    font-weight: bold;
+    width: 6em;
+    height: 2.5em;
+    border-radius: 5px;
+    color: black;
+}
+
+.path-mod-quiz .pickedbutton {
+    margin: 0.7em 0;
+    text-align: center;
+    background: #97CBFF;
+    font-size: 16px;
+    font-weight: bold;
+    width: 6em;
+    height: 2.5em;
+    border-radius: 5px;
+    color: black;
+}
+
+.text-success-unpicked {
+    color: #77B474 !important;
+}
+
+.text-danger-unpicked {
+    color: #db786d !important;
+}
+.text-partial-unpicked {
+    color: #106AA8 !important;
+}
+#page-mod-quiz-edit .section-heading .sectioninstance {
+    position: relative;
+}
+
+#page-mod-quiz-edit ul.section li.pagenumber:first-child .add-menu-outer .menu > :last-child,
+#page-mod-quiz-edit .last-add-menu .add-menu-outer .menu > :last-child,
+#page-mod-quiz-edit .less_than_choice .add-menu-outer .menu > :last-child {
+    display: none;
+}
+
+
+.path-mod-quiz #mod_quiz_navblock .qnbutton.picked {
+    background-color: #97CBFF;
 }

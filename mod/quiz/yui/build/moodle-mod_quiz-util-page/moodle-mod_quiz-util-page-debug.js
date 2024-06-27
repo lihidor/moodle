@@ -35,7 +35,9 @@ Y.Moodle.mod_quiz.util.page = {
         ADDASECTION: '[data-action="addasection"]',
         PAGE: 'li.page',
         INSTANCENAME: '.instancename',
-        NUMBER: 'h4'
+        NUMBER: 'h4',
+        CHOOSE_QUESTIONS: 'select#menuselectpick',
+        ACTIONMENULI: 'li.pagenumber'
     },
 
     /**
@@ -148,6 +150,17 @@ Y.Moodle.mod_quiz.util.page = {
         return Y.all(Y.Moodle.mod_quiz.util.slot.SELECTORS.PAGECONTENT + ' ' +
                      Y.Moodle.mod_quiz.util.slot.SELECTORS.SECTIONUL + ' ' +
                     this.SELECTORS.PAGE);
+    },
+
+    /**
+     * Returns a list of all divs in section headings of setting questions' picks.
+     *
+     * @method getSectionsPicks
+     * @return {node[]} An array containing div nodes.
+     */
+    getSectionsPicks: function() {
+        return Y.all(Y.Moodle.mod_quiz.util.slot.SELECTORS.PAGECONTENT + ' ' +
+            this.SELECTORS.CHOOSE_QUESTIONS);
     },
 
     /**
@@ -338,6 +351,39 @@ Y.Moodle.mod_quiz.util.page = {
      */
     setActionMenuId: function(actionmenu, id) {
         actionmenu.set('id', this.CONSTANTS.ACTIONMENUIDPREFIX + id);
+    },
+
+    setActMenuClass: function() {
+        var sections_picks = this.getSectionsPicks();
+        var min_questions = 0;
+        //var curr_question = 0;
+        var index;
+
+       sections_picks.each(function(section_picks) {
+            min_questions = Number(section_picks.get('value'));
+            var question_number = 0;
+            if (min_questions != 0) {
+                min_questions += 1;
+            }
+            //alert('min_questions.  = ' + min_questions);
+            var section = section_picks.ancestor('li.section');
+            var sectionul = section.one(Y.Moodle.mod_quiz.util.slot.SELECTORS.SECTIONUL);
+            var sectionnodes = sectionul.get('childNodes');
+            for (index = 0; index < sectionnodes.size(); index++) {
+               // alert('qn = ' + question_number);
+                var sectionnode = sectionnodes.item(index);
+                if (sectionnode.hasClass('pagenumber')) {
+                    if (question_number < min_questions) {
+                        sectionnode.addClass('less_than_choice');
+                    } else {
+                        sectionnode.removeClass('less_than_choice');
+                    }
+                }
+                if ('slot' == sectionnode.get('id').substr(0, 4) && !sectionnode.hasClass('qtype_description')) {
+                    question_number += 1;
+                }
+            }
+        }, this);
     }
 };
 

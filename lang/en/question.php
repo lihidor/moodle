@@ -260,6 +260,7 @@ $string['notagfiltersapplied'] = 'No tag filters applied';
 $string['notenoughanswers'] = 'This type of question requires at least {$a} answers';
 $string['notenoughdatatoeditaquestion'] = 'Neither a question id, nor a category id and question type, was specified.';
 $string['notenoughdatatomovequestions'] = 'You need to provide the question ids of questions you want to move.';
+$string['notflagged'] = 'Not flagged';
 $string['novirtualquestiontype'] = 'No virtual question type for question type {$a}';
 $string['numqas'] = 'No. question attempts';
 $string['numquestions'] = 'No. questions';
@@ -518,3 +519,20 @@ $string['notflagged'] = 'Not flagged';
 
 // Deprecated since Moodle 4.1.
 $string['nopermissionmove'] = 'You don\'t have permission to move questions from here. You must save the question in this category or save it as a new question.';
+
+$string['questionstopick'] = 'In this section you have to answer {$a->questionstopick} out of {$a->allquestions} questions.';
+$string['pick'] = 'pick';
+$string['unpick'] = 'picked';
+$string['clickpick'] = 'click to pick the question';
+$string['clickunpick'] = 'click to unpick the question';
+$string['correct_picked'] = "question was picked, answer is correct.";
+$string['incorrect_picked'] = "question was picked, answer isn't correct.";
+$string['correct_unpicked'] = "question wasn't picked, answer is correct.";
+$string['incorrect_unpicked'] = "question wasn't picked, answer isn't correct.";
+$string['partiallycorrect_picked'] = "question was picked, answer is partially correct.";
+$string['partiallycorrect_unpicked'] = "question wasn't picked, answer is partially correct.";
+$string['questionpicked'] = "Question is selected ";
+$string['questionnotpicked'] = "Question is not selected ";
+$string['questioncalculated'] = "and IS included in calculation";
+$string['questionnotcalculated'] = "and IS NOT included in calculation";
+$string['mandatoryquestion'] = "Mandatory Question";

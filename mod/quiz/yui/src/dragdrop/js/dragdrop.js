@@ -31,5 +31,6 @@ var CSS = {
 // The CSS selectors we use.
 SELECTOR = {
     PAGE: 'li.page',
-    SLOT: 'li.slot'
+    SLOT: 'li.slot',
+    SUMMARKS: 'span.mod_quiz_summarks'
 };

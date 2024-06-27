@@ -201,6 +201,15 @@ M.mod_quiz.nav.update_flag_state = function(attemptid, questionid, newstate) {
     }
 };
 
+M.mod_quiz.nav.update_pick_state = function(attemptid, questionid, newstate) {
+    var Y = M.mod_quiz.nav.Y;
+    var navlink = Y.one('#quiznavbutton' + questionid);
+    navlink.removeClass('picked');
+    if (newstate == 1) {
+        navlink.addClass('picked');
+    }
+};
+
 M.mod_quiz.nav.init = function(Y) {
     M.mod_quiz.nav.Y = Y;
 
@@ -264,6 +273,10 @@ M.mod_quiz.nav.init = function(Y) {
 
     if (M.core_question_flags) {
         M.core_question_flags.add_listener(M.mod_quiz.nav.update_flag_state);
+    }
+
+    if (M.core_question_picks) {
+        M.core_question_picks.add_listener(M.mod_quiz.nav.update_pick_state);
     }
 };
 

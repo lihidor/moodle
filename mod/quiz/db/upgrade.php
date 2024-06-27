@@ -156,7 +156,40 @@ function xmldb_quiz_upgrade($oldversion) {
         // Quiz savepoint reached.
         upgrade_mod_savepoint(true, 2022020300, 'quiz');
     }
+    if ($oldversion < 2024052400) {
 
+        $table = new xmldb_table('quiz_sections');
+
+        // Define field numberofquestionstopick to be added to quiz_sections.
+        $field = new xmldb_field('numberofquestionstopick', XMLDB_TYPE_INTEGER, '3', true, null, null, null, 'shufflequestions');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        $field = new xmldb_field('overallmark', XMLDB_TYPE_NUMBER, '12', true, null, null, null, 'numberofquestionstopick');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        $table = new xmldb_table('quiz_pickedquestions');
+
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('questionusageid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('slot', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('picked', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, 0);
+        $table->add_field('calculated', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, 0);
+
+        // Adding keys to table quiz_slot_tags.
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_index('questionusageid-slot', XMLDB_INDEX_UNIQUE, ['questionusageid', 'slot']);
+        // Conditionally launch create table for quiz_slot_tags.
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Quiz savepoint reached.
+        upgrade_mod_savepoint(true, 2024052400, 'quiz');
+    }
     // Automatically generated Moodle v4.0.0 release upgrade line.
     // Put any upgrade step following this.
 

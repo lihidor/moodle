@@ -35,6 +35,17 @@ Y.extend(SECTIONTOOLBOX, TOOLBOX, {
     editsectionevents: [],
 
     /**
+     * An Array of events added when editing a section's overall mark field.
+     * These should all be detached when editing is complete.
+     *
+     * @property editoverallmarkevents
+     * @protected
+     * @type Array
+     * @protected
+     */
+    editoverallmarkevents: [],
+
+    /**
      * Initialize the section toolboxes module.
      *
      * Updates all span.commands with relevant handlers and other required changes.
@@ -48,6 +59,8 @@ Y.extend(SECTIONTOOLBOX, TOOLBOX, {
         BODY.delegate('key', this.handle_data_action, 'down:enter', SELECTOR.ACTIVITYACTION, this);
         Y.delegate('click', this.handle_data_action, BODY, SELECTOR.ACTIVITYACTION, this);
         Y.delegate('change', this.handle_data_action, BODY, SELECTOR.EDITSHUFFLEQUESTIONSACTION, this);
+        Y.delegate('change', this.handle_data_action, BODY, SELECTOR.SELECTPICKQUESTIONS, this);
+        Y.delegate('change', this.handle_data_action, BODY, SELECTOR.INPUTOVERALLMARK, this);
     },
 
     /**
@@ -63,16 +76,17 @@ Y.extend(SECTIONTOOLBOX, TOOLBOX, {
     handle_data_action: function(ev) {
         // We need to get the anchor element that triggered this event.
         var node = ev.target;
-        if (!node.test('a') && !node.test('input[data-action]')) {
+        if (!node.test('a') && !node.test("input[data-action]") && !node.test("select[name=selectpick]")) {
             node = node.ancestor(SELECTOR.ACTIVITYACTION);
         }
 
-        // From the anchor we can get both the activity (added during initialisation) and the action being
+        // From the anchor we can get both the activity (added during initialisation
+        // ) and the action being
         // performed (added by the UI as a data attribute).
         var action = node.getData('action'),
             activity = node.ancestor(SELECTOR.ACTIVITYLI);
-
-        if ((!node.test('a') && !node.test('input[data-action]')) || !action || !activity) {
+        if ((!node.test("a") && !node.test("input[data-action]") && !node.test("select[name=selectpick]"))
+		 || !action || !activity) {
             // It wasn't a valid action node.
             return;
         }
@@ -90,6 +104,13 @@ Y.extend(SECTIONTOOLBOX, TOOLBOX, {
             case 'deletesection':
                 // The user is deleting the activity.
                 this.delete_section_with_confirmation(ev, node, activity, action);
+                break;
+            case "section_set_questions_pick":
+                this.section_set_questions_pick(ev, node, activity, action);
+                M.mod_quiz.resource_toolbox.reorganise_edit_page();
+                break;
+            case "section_set_overallmark":
+                this.section_set_overallmark(ev, node, activity, action);
                 break;
             default:
                 // Nothing to do here!
@@ -342,8 +363,89 @@ Y.extend(SECTIONTOOLBOX, TOOLBOX, {
         // Send request.
         var spinner = M.util.add_spinner(Y, activity.one(SELECTOR.EDITSHUFFLEAREA));
         this.send_request(data, spinner);
-    }
+    },
+    section_set_questions_pick: function(ev, button, activity) {
+        var newvalue = activity.one(SELECTOR.SELECTPICKQUESTIONS).get('value');
+        var inputoverallmark = activity.one(SELECTOR.INPUTOVERALLMARK);
+        var data = {
+            'class': 'section',
+            'field': 'updatenumberofquestionstopick',
+            'id': activity.get('id').replace('section-', ''),
+            'questionstopick': newvalue,
+            'overallmark': inputoverallmark.get('value')
+        };
 
+        // Prevent the default actions.
+        //ev.preventDefault();
+
+        var spinner = M.util.add_spinner(Y, activity.one(SELECTOR.EDITPICKQUESTIONSAREA));
+        this.send_request(data, spinner, function(response) {
+            if(response.instancequestionstopick > 0) {
+                activity.all('.section-without-pick').each(function(overallmark) {
+                    overallmark.removeClass('section-without-pick');
+            });
+            if (inputoverallmark.get('value') === null || inputoverallmark.get('value') === "") {
+                activity.one(SELECTOR.INPUTOVERALLMARK).setAttrs({
+                    'value': response.instancequestionstopick,
+                    'size': parseInt(this.get('config').questiondecimalpoints, 10) + 2
+                });
+            }
+            var one_slot_mark = response.one_slot_mark;
+            this.divide_overall_mark(activity, one_slot_mark);
+        } else {
+            activity.all('.section-questions-pick').each(function(overallmark) {
+                overallmark.addClass('section-without-pick');
+            });
+            activity.all('.editing_maxmark').each(function(editing_maxmark) {
+                editing_maxmark.removeClass('section-overall-mark');
+            });
+            activity.one(SELECTOR.INPUTOVERALLMARK).setAttrs({
+                    'value': null
+            });
+            /*activity.all(SELECTOR.INSTANCEMAXMARK).each(function(slotmark) {
+                var infoslot =  slotmark.get('parentNode').get('className');
+                if (infoslot.indexOf('infoitem') < 0) {
+                    slotmark.setContent('1.00');
+                }
+            });  */
+        }
+        });
+    },
+    section_set_overallmark: function(ev, button, activity) {
+        var newvalue = activity.one(SELECTOR.INPUTOVERALLMARK).get('value');
+        var questionstopickselect = activity.one(SELECTOR.SELECTPICKQUESTIONS);
+        var data = {
+            'class': 'section',
+            'field': 'updateoverallmark',
+            'id': activity.get('id').replace('section-', ''),
+            'overallmark': newvalue,
+            'questionstopick': questionstopickselect.get('value')
+        };
+
+        // Prevent the default actions.
+        ev.preventDefault();
+
+        var spinner = M.util.add_spinner(Y, activity.one(SELECTOR.EDITPICKQUESTIONSAREA));
+        this.send_request(data, spinner, function(response) {
+            activity.one(SELECTOR.INPUTOVERALLMARK).setAttrs({
+                'value': response.instanceoverallmark,
+                'size': parseInt(this.get('config').questiondecimalpoints, 10) + 2
+            });
+            var one_slot_mark = response.one_slot_mark;
+            this.divide_overall_mark(activity, one_slot_mark);
+        });
+    },
+    divide_overall_mark: function(activity, one_slot_mark) {
+        activity.all('.editing_maxmark').each(function(editing_maxmark) {
+            editing_maxmark.addClass('section-overall-mark');
+        });
+        activity.all(SELECTOR.INSTANCEMAXMARK).each(function(slotmark) {
+            var infoslot =  slotmark.get('parentNode').get('className');
+            if (infoslot.indexOf('infoitem') < 0) {
+                slotmark.setContent(one_slot_mark);
+            }
+        });
+    }
 }, {
     NAME: 'mod_quiz-section-toolbox',
     ATTRS: {

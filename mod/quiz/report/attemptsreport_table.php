@@ -257,11 +257,18 @@ abstract class quiz_attempts_report_table extends table_sql {
         $feedbackimg = '';
         $state = $this->slot_state($attempt, $slot);
         if ($state && $state->is_finished() && $state != question_state::$needsgrading) {
-            $feedbackimg = $this->icon_for_fraction($this->slot_fraction($attempt, $slot));
-        }
+            $fraction = $this->slot_fraction($attempt, $slot);
+            $slot_picked = $this->is_picked($attempt->usageid, $slot);
+            $slot_pickable = is_slot_pickable($this->quiz->id, $slot);
+            $feedbackimg = $this->icon_for_fraction($fraction, $slot_picked, $slot_pickable);
 
+        }
+        $spanclass = 'que';
+        if ($this->is_calculated($attempt->usageid, $slot)) {
+            $spanclass = 'question_calculated';
+        }
         $output = html_writer::tag('span', $feedbackimg . html_writer::tag('span',
-                $data, array('class' => $state->get_state_class(true))) . $flag, array('class' => 'que'));
+                $data, array('class' => $state->get_state_class(true))) . $flag, array('class' => $spanclass));
 
         $reviewparams = array('attempt' => $attempt->attempt, 'slot' => $slot);
         if (isset($attempt->try)) {
@@ -306,6 +313,26 @@ abstract class quiz_attempts_report_table extends table_sql {
         return $stepdata->flagged;
     }
 
+    /**
+     * @param int $questionusageid
+     * @param int $slot
+     * @return bool
+     */
+    protected function is_picked($questionusageid, $slot) {
+        $stepdata = $this->lateststeps[$questionusageid][$slot];
+        return $stepdata->picked;
+    }
+
+    /**
+     * @param int $questionusageid
+     * @param int $slot
+     * @return bool
+     */
+    protected function is_calculated($questionusageid, $slot) {
+        $stepdata = $this->lateststeps[$questionusageid][$slot];
+        return $stepdata->calculated;
+    }
+
 
     /**
      * @param object $attempt the row data
@@ -322,10 +349,18 @@ abstract class quiz_attempts_report_table extends table_sql {
      * @param float $fraction grade on a scale 0..1.
      * @return string html fragment.
      */
-    protected function icon_for_fraction($fraction) {
+    protected function icon_for_fraction($fraction, $picked, $pickable) {
         global $OUTPUT;
 
         $feedbackclass = question_state::graded_state_for_fraction($fraction)->get_feedback_class();
+        if ($pickable) {
+            if ($picked) {
+                $feedbackclass .= '_picked';
+            } else {
+                $feedbackclass .= '_unpicked';
+            }
+        }
+
         return $OUTPUT->pix_icon('i/grade_' . $feedbackclass, get_string($feedbackclass, 'question'),
                 'moodle', array('class' => 'icon'));
     }
