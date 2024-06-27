@@ -385,6 +385,8 @@ SELECT
     qa.minfraction,
     qa.maxfraction,
     qa.flagged,
+    qp.picked,
+    qp.calculated,
     qa.questionsummary,
     qa.rightanswer,
     qa.responsesummary,
@@ -449,6 +451,8 @@ SELECT
     qa.minfraction,
     qa.maxfraction,
     qa.flagged,
+    qp.picked,
+    qp.calculated,
     qa.questionsummary,
     qa.rightanswer,
     qa.responsesummary,
@@ -466,6 +470,7 @@ FROM      {question_usages}            quba
 LEFT JOIN {question_attempts}          qa   ON qa.questionusageid    = quba.id
 LEFT JOIN {question_attempt_steps}     qas  ON qas.questionattemptid = qa.id
 LEFT JOIN {question_attempt_step_data} qasd ON qasd.attemptstepid    = qas.id
+LEFT JOIN {quiz_pickedquestions}   qp   ON qp.questionusageid    = quba.id and qp.slot = qa.slot
 
 WHERE
     quba.id = :qubaid
@@ -592,7 +597,9 @@ ORDER BY
     qas.state,
     qas.fraction,
     qas.timecreated,
-    qas.userid";
+    qas.userid,
+    qp.picked,
+    qp.calculated";
 
         }
 
@@ -603,6 +610,7 @@ SELECT
 FROM {$qubaids->from_question_attempts('qa')}
 JOIN {question_attempt_steps} qas ON qas.questionattemptid = qa.id
         AND qas.sequencenumber = {$this->latest_step_for_qa_subquery()}
+LEFT JOIN {quiz_pickedquestions}  qp  ON qp.questionusageid = qa.questionusageid and qp.slot = qa.slot
 
 WHERE
     {$qubaids->where()}
@@ -814,7 +822,7 @@ ORDER BY
                 (string) question_state::$mangaveup,
                 (string) question_state::$mangrwrong,
                 (string) question_state::$mangrpartial,
-                (string) question_state::$mangrright), SQL_PARAMS_NAMED, 'st');
+                (string) question_state::$mangrright), SQL_PARAMS_NAMED, 'st', );
 
         return $this->db->get_records_sql("
 SELECT
@@ -1104,12 +1112,34 @@ ORDER BY
      */
     public function update_question_attempt_flag($qubaid, $questionid, $qaid, $slot, $newstate) {
         if (!$this->db->record_exists('question_attempts', array('id' => $qaid,
-                'questionusageid' => $qubaid, 'questionid' => $questionid, 'slot' => $slot))) {
+                'questionusageid' => $qubaid, 'questionid' => $questionid, 'slot' => $slot, ))) {
             throw new moodle_exception('errorsavingflags', 'question');
         }
 
         $this->db->set_field('question_attempts', 'flagged', $newstate, array('id' => $qaid));
     }
+
+    /**
+     * Update the picked state of a question in the database.
+     *
+     * You should call {@link question_engine::update_flag()()}
+     * rather than calling this method directly.
+     *
+     * @param int $qubaid the question usage id.
+     * @param int $questionid the question id.
+     * @param int $qaid the question_attempt id.
+     * @param int $slot the slot number of the question attempt to update.
+     * @param bool $newstate the new state of the flag. true = flagged.
+     */
+    public function update_question_attempt_pick($qubaid, $questionid, $qaid, $slot, $newstate) {
+        if (!$this->db->record_exists('question_attempts', ['id' => $qaid,
+            'questionusageid' => $qubaid, 'questionid' => $questionid, 'slot' => $slot, ])) {
+            throw new moodle_exception('errorsavingflags', 'question');
+        }
+
+        $this->db->set_field('quiz_pickedquestions', 'picked', $newstate, array('questionusageid' => $qubaid, 'slot' => $slot));
+    }
+
 
     /**
      * Get all the WHEN 'x' THEN 'y' terms needed to convert the question_attempt_steps.state

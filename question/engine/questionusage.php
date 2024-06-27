@@ -362,16 +362,65 @@ class question_usage_by_activity {
      * Get the total mark for all questions in this usage.
      * @return number The sum of marks of all the question_attempts in this usage.
      */
-    public function get_total_mark() {
+    /**
+     * Get the total mark for all questions in this usage.
+     * @return number The sum of marks of all the question_attempts in this usage.
+     */
+    public function get_total_mark($quiz = null) {
+        global $DB;
         $mark = 0;
-        foreach ($this->questionattempts as $qa) {
-            if ($qa->get_max_mark() > 0 && $qa->get_state() == question_state::$needsgrading) {
-                return null;
+        if ($quiz) {
+            $sections = $DB->get_records('quiz_sections', array('quizid' => $quiz), 'id desc', 'id, firstslot, numberofquestionstopick, overallmark');
+            $lastquizslot_sql = "SELECT slot FROM {quiz_slots} WHERE quizid = ? ORDER BY slot desc LIMIT 1";
+            $lastslot = $DB->get_field_sql($lastquizslot_sql, array('quizid' => $quiz));
+            foreach ($sections as $section) {
+                $section->lastslot = $lastslot;
+                $lastslot = $section->firstslot - 1;
             }
-            $mark += $qa->get_mark();
+            foreach ($sections as $section) {
+                $section->pickedquestions = [];
+                foreach ($this->questionattempts as $qa) {
+                    if ($qa->get_max_mark() > 0 && $qa->get_state() == question_state::$needsgrading) {
+                        return null;
+                    }
+                    if ($qa->get_slot() >= $section->firstslot && $qa->get_slot() <= $section->lastslot) {
+                        if ($section->numberofquestionstopick && $section->numberofquestionstopick > 0) {
+                            if ($qa->is_picked() && count($section->pickedquestions) < $section->numberofquestionstopick) {
+                                $mark += $qa->get_mark();
+                                $DB->set_field('quiz_pickedquestions', 'calculated', 1, array('questionusageid' => $this->id, 'slot' => $qa->get_slot()));
+                                $section->pickedquestions[] = $qa->get_slot();
+                            }
+                        } else {   // section in which all the questions are mandatory
+                            $mark += $qa->get_mark();
+                            $DB->set_field('quiz_pickedquestions', 'calculated', 1, array('questionusageid' => $this->id, 'slot' => $qa->get_slot()));
+                        }
+                    }
+                }
+            }
+            foreach ($sections as $section) {       //go over all sections again and if the student didn't pick enough questions add other questions that weren't picked
+                $calcated_q = count($section->pickedquestions);
+                foreach ($this->questionattempts as $qa) {
+                    if ($qa->get_slot() >= $section->firstslot && $qa->get_slot() <= $section->lastslot) {
+                        if ($calcated_q < $section->numberofquestionstopick && !in_array($qa->get_slot(), $section->pickedquestions) && $qa->get_response_summary()) {
+                            $mark += $qa->get_mark();
+                            $calcated_q += 1;
+                            $DB->set_field('quiz_pickedquestions', 'calculated', 1, array('questionusageid' => $this->id, 'slot' => $qa->get_slot()));
+                        }
+                    }
+                }
+            }
+        } else {
+            foreach ($this->questionattempts as $qa) {
+                if ($qa->get_max_mark() > 0 && $qa->get_state() == question_state::$needsgrading) {
+                    return null;
+                }
+                $mark += $qa->get_mark();
+            }
         }
         return $mark;
     }
+
+
 
     /**
      * Get summary information about this usage.

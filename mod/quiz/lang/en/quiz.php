@@ -485,6 +485,7 @@ $string['indicator:socialbreadthdef_help'] = 'The participant has reached this p
 $string['indicator:socialbreadthdef_link'] = 'Learning_analytics_indicators#Social_breadth';
 $string['indivresp'] = 'Responses of individuals to each item';
 $string['info'] = 'Info';
+$string['infoshufflequestions'] = 'Shuffle Questions: ';
 $string['infoshort'] = 'i';
 $string['initialnumfeedbacks'] = 'Initial number of overall feedback fields';
 $string['initialnumfeedbacks_desc'] = 'When creating a new quiz, provide this many blank overall feedback boxes. Once the quiz has been created, the form shows the number of fields required for the number of feedbacks in the quiz. The setting must be at least 1.';
@@ -762,6 +763,7 @@ $string['quizclosed'] = 'This quiz closed on {$a}';
 $string['quizcloses'] = 'Quiz closes';
 $string['quizeventcloses'] = '{$a} closes';
 $string['quizcloseson'] = 'This quiz will close on {$a}.';
+$string['quiz_questions'] = 'Quiz questions';
 $string['quiz:deleteattempts'] = 'Delete quiz attempts';
 $string['quiz:emailconfirmsubmission'] = 'Receive confirmation of your own quiz submissions';
 $string['quiz:emailnotifysubmission'] = 'Receive notification of your students\' quiz submissions';
@@ -1072,3 +1074,34 @@ $string['completionpass_help'] = 'If enabled, this activity is considered comple
 $string['completiondetail:passgrade'] = 'Receive a pass grade';
 $string['gradetopassnotset'] = 'This quiz does not yet have a grade to pass set. It may be set in the Grade section of the quiz settings.';
 $string['basicideasofquiz'] = 'The basic ideas of quiz-making';
+$string['questions'] = 'questions';
+$string['allquestions'] = 'all the questions';
+$string['onequestion'] = 'one question';
+$string['questionstoanswer'] = 'The students must answer';
+$string['section'] = 'Section';
+$string['sectionheading_help'] = 'To edit the chapter title, click on the pencil icon';
+$string['sectionoverallmark'] = 'Section overall mark';
+$string['setsectionoverallmark'] = 'Set section overall mark';
+$string['questionstopick'] = 'In this part you have to answer {$a->questionstopick} out of {$a->allquestions} questions<br>
+                              In order to pick a question press the "pick" button, to unpick it press the "picked" button.';
+$string['questionspickhelp'] = 'Questions pick';
+$string['questionspickhelp_help'] = '<b>If student does not select the required number of questions</b>
+The first questions in the section will be graded<br>
+for example:<br>
+If section X to includes 2 out of 5 questions<br>
+student answered all 5 questions<br>
+and did not select any questions<br>
+<b>So: questions 1 + 2 will be graded</b><br>
+If answered questions 1 + 3 + 5<br>
+<b>So: questions 1 + 3 will be graded</b><br><br>
+
+<b>If more questions than required are selected</b> > the first questions will be graded<br>
+If section X to includes 2 out of 5 questions<br>
+student select 3 questions 1 + 3 + 5<br>
+<b>So: questions 1 + 3 will be graded</b>';
+$string['pickedquestions'] = 'So far {$a} questions were picked - ';
+$string['questionpicked'] = 'This question was picked';
+$string['enoughquestions'] = 'In this section you had to pick {$a->requiredquestions} questions and you picked {$a->pickedquestions}.';
+$string['notenoughquestions'] = 'Not enough questions were picked. You had to pick {$a->requiredquestions} questions and you picked only {$a->pickedquestions}.
+<br> The first questions in the section will be graded';
+$string['questionstopick_short'] = 'In this part you have to answer {$a->questionstopick} out of {$a->allquestions} questions';

@@ -72,7 +72,7 @@ require_capability('mod/quiz:manage', $contexts->lowest());
 // Process commands ============================================================.
 
 // Get the list of question ids had their check-boxes ticked.
-$selectedslots = array();
+$selectedslots = [];
 $params = (array) data_submitted();
 foreach ($params as $key => $value) {
     if (preg_match('!^s([0-9]+)$!', $key, $matches)) {
@@ -127,6 +127,7 @@ if ($addsectionatpage = optional_param('addsectionatpage', false, PARAM_INT)) {
     // Add a section to the quiz.
     $structure->check_can_be_edited();
     $structure->add_section_heading($addsectionatpage);
+    $structure->rename_sections();
     quiz_delete_previews($quiz);
     redirect($afteractionurl);
 }
@@ -163,8 +164,8 @@ $event = \mod_quiz\event\edit_page_viewed::create([
     'courseid' => $course->id,
     'context' => $contexts->lowest(),
     'other' => [
-        'quizid' => $quiz->id
-    ]
+        'quizid' => $quiz->id,
+    ],
 ]);
 $event->trigger();
 

@@ -79,6 +79,8 @@
         <FIELD NAME="firstslot" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Number of the first slot in the section. The section runs from here to the start of the next section, or the end of the quiz."/>
         <FIELD NAME="heading" TYPE="char" LENGTH="1333" NOTNULL="false" SEQUENCE="false" COMMENT="The text of the heading. May be an empty string/null. Multilang format."/>
         <FIELD NAME="shufflequestions" TYPE="int" LENGTH="4" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Whether the question order within this section should be shuffled for each attempt."/>
+        <FIELD NAME="numberofquestionstopick" TYPE="int" LENGTH="3" UNSIGNED="true" NOTNULL="false" SEQUENCE="false" COMMENT="The number of questions in this section the student should answer out of all the questions."/>
+        <FIELD NAME="overallmark" TYPE="number" LENGTH="12" NOTNULL="false" SEQUENCE="false" DECIMALS="7" COMMENT="How many marks this section contributes to quiz.sumgrades. will be distributed equally between all it's questions"/>
       </FIELDS>
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
@@ -179,6 +181,34 @@
       </KEYS>
       <INDEXES>
         <INDEX NAME="name" UNIQUE="true" FIELDS="name"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="quiz_slot_tags" COMMENT="Stores data about the tags that a question must have so that it can be selected for a quiz slot (when having a random question by tags on that slot).">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="slotid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="The quiz slot that this tag belong to"/>
+        <FIELD NAME="tagid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="tagname" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="The tag name is to be stored as well, so we won't lose data if the tag is removed from Moodle (A tag with the same name might be added in future)."/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="slotid" TYPE="foreign" FIELDS="slotid" REFTABLE="quiz_slots" REFFIELDS="id"/>
+        <KEY NAME="tagid" TYPE="foreign" FIELDS="tagid" REFTABLE="tag" REFFIELDS="id"/>
+      </KEYS>
+    </TABLE>
+    <TABLE NAME="quiz_pickedquestions" COMMENT="the questions the in the quiz that the student decided that will be checked">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="questionusageid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Foreign key, references question_usages.id"/>
+        <FIELD NAME="slot" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="The position in the quiz where this question appears"/>
+        <FIELD NAME="picked" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Whether this question has been picked to be graded by the student."/>
+        <FIELD NAME="calculated" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Whether this question has been calculated in the quiz grade."/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="questionusageid-slot" UNIQUE="true" FIELDS="questionusageid, slot"/>
       </INDEXES>
     </TABLE>
   </TABLES>

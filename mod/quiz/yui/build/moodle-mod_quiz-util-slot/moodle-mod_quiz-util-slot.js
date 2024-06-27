@@ -36,7 +36,11 @@ Y.Moodle.mod_quiz.util.slot = {
         SECTIONUL: 'ul.section',
         DEPENDENCY_WRAPPER: '.question_dependency_wrapper',
         DEPENDENCY_LINK: '.question_dependency_wrapper .cm-edit-action',
-        DEPENDENCY_ICON: '.question_dependency_wrapper .icon'
+        DEPENDENCY_ICON: '.question_dependency_wrapper .icon',
+        SELECTPICKQUESTIONS:  "select[name=selectpick]",
+        INPUTOVERALLMARK: "input[name=sectionoverallmark]",
+        INSTANCEMAXMARK: 'span.instancemaxmark',
+        EDITMAXMARK: 'a.editing_maxmark'
     },
 
     /**
@@ -437,6 +441,39 @@ Y.Moodle.mod_quiz.util.slot = {
                     }
                 );
             });
+        }
+    },
+
+    /**
+     * Add class min-size-for-pick to those sections who has only 1 question more than the number of questions to pick
+     *
+     * @method updateOneSlotSections
+     * @return void
+     */
+    updateMinSizeForPickSections: function() {
+        Y.all('.mod-quiz-edit-content ul.slots li.section').each(function(section) {
+            var questions = section.all(this.SELECTORS.SLOT + ':not(' + this.SELECTORS.QUESTIONTYPEDESCRIPTION + ')');
+            var pick = section.all(this.SELECTORS.SELECTPICKQUESTIONS).get('value');
+            // The no. of questions to pick from should be bigger from the no. to pick in at least 1
+            if (pick != 0 && !(pick === null) && !(questions.size() > ++pick)) {
+                section.addClass('not-enough-for-pick');
+            } else {
+                section.removeClass('not-enough-for-pick');
+            }
+        }, this);
+    },
+
+    updateslotMaxMark: function(Y, slot, maxmark) {
+        slot.one(this.SELECTORS.INSTANCEMAXMARK).setContent(maxmark);
+    },
+
+    updateslotClass: function(Y, slot, section_overall_mark) {
+        if (!slot.hasClass('qtype_description')) {
+            if (section_overall_mark) {
+                slot.one(this.SELECTORS.EDITMAXMARK).addClass('section-overall-mark');
+            } else {
+                slot.one(this.SELECTORS.EDITMAXMARK).removeClass('section-overall-mark');
+            }
         }
     }
 };

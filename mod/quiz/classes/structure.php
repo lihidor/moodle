@@ -428,6 +428,26 @@ class structure {
     }
 
     /**
+     * Is this section with possibility to pick questions?
+     * @param \stdClass $slotnumber the quiz_slot row.
+     * @return bool whether this section has pick questions possibility.
+     */
+    public function is_section_with_questions_pick($slotnumber) {
+        return ($this->slotsinorder[$slotnumber]->section->numberofquestionstopick);
+    }
+
+    /**
+     * Checks if section can "spare" questions
+     * if section has questions to pick it should contain enough questions to pick from (questions to pick +1)
+     * @param \stdClass $section the quiz_sections row.
+     * @return bool whether this section has pick questions possibility.
+     */
+    public function section_has_enough_questions_to_pick($section) {
+        return ($section->numberofquestionstopick + 1 < $section->lastslot - $section->firstslot + 1);
+    }
+
+
+    /**
      * Get the final slot in the quiz.
      * @return \stdClass the quiz_slots for for the final slot in the quiz.
      */
@@ -508,6 +528,21 @@ class structure {
             }
         }
         return $slots;
+    }
+
+    /**
+     * Get all the slots in a section of the quiz that are really a question.
+     * @param int $sectionid the section id.
+     * @return int[] slot numbers.
+     */
+    public function get_real_questions_in_section($sectionid) {
+        $questionsno = 0;
+        foreach ($this->slotsinorder as $slot) {
+            if ($slot->section->id == $sectionid  && $this->is_real_question($slot->slot)) {
+                $questionsno++;
+            }
+        }
+        return $questionsno;
     }
 
     /**
@@ -659,13 +694,16 @@ class structure {
     public function populate_slots_with_sections() {
         $sections = array_values($this->sections);
         foreach ($sections as $i => $section) {
+            $j = 1;
             if (isset($sections[$i + 1])) {
                 $section->lastslot = $sections[$i + 1]->firstslot - 1;
             } else {
                 $section->lastslot = count($this->slotsinorder);
             }
             for ($slot = $section->firstslot; $slot <= $section->lastslot; $slot += 1) {
+                $this->slotsinorder[$slot]->numberinsection = $j;
                 $this->slotsinorder[$slot]->section = $section;
+                $j++;
             }
         }
     }
@@ -737,7 +775,7 @@ class structure {
      *      section starts, include it in that section.
      * @return void
      */
-    public function move_slot($idmove, $idmoveafter, $page) {
+    public function move_slot($idmove, $idmoveafter, $page, $maxmark) {
         global $DB;
 
         $this->check_can_be_edited();
@@ -847,7 +885,9 @@ class structure {
             $DB->set_field('quiz_slots', 'page', $page,
                     array('id' => $movingslot->id));
         }
-
+        if ($maxmark) {
+            $DB->set_field('quiz_slots', 'maxmark', $maxmark, ['id' => $idmove]);
+        }
         // Update section fist slots.
         quiz_update_section_firstslots($this->get_quizid(), $headingmovedirection,
                 $headingmoveafter, $headingmovebefore);
@@ -881,8 +921,8 @@ class structure {
                 'quizid' => $this->quizobj->get_quizid(),
                 'previousslotnumber' => $movingslotnumber,
                 'afterslotnumber' => $moveafterslotnumber,
-                'page' => $page
-             ]
+                'page' => $page,
+             ],
         ]);
         $event->trigger();
     }
@@ -1002,7 +1042,7 @@ class structure {
             'other' => [
                 'quizid' => $this->get_quizid(),
                 'slotnumber' => $slotnumber,
-            ]
+            ],
         ]);
         $event->trigger();
     }
@@ -1055,8 +1095,8 @@ class structure {
             'other' => [
                 'quizid' => $this->get_quizid(),
                 'previousmaxmark' => $previousmaxmark + 0,
-                'newmaxmark' => $maxmark + 0
-            ]
+                'newmaxmark' => $maxmark + 0,
+            ],
         ]);
         $event->trigger();
 
@@ -1078,8 +1118,8 @@ class structure {
             'objectid' => $slotid,
             'other' => [
                 'quizid' => $this->get_quizid(),
-                'requireprevious' => $requireprevious ? 1 : 0
-            ]
+                'requireprevious' => $requireprevious ? 1 : 0,
+            ],
         ]);
         $event->trigger();
     }
@@ -1111,8 +1151,8 @@ class structure {
                 'objectid' => $slotid,
                 'other' => [
                     'quizid' => $this->get_quizid(),
-                    'slotnumber' => $quizslots[$slotid]->slot
-                ]
+                    'slotnumber' => $quizslots[$slotid]->slot,
+                ],
             ]);
             $event->trigger();
         } else {
@@ -1122,12 +1162,13 @@ class structure {
                 'objectid' => $slotid,
                 'other' => [
                     'quizid' => $this->get_quizid(),
-                    'slotnumber' => $quizslots[$slotid]->slot
-                ]
+                    'slotnumber' => $quizslots[$slotid]->slot,
+                ],
             ]);
             $event->trigger();
         }
 
+        quiz_delete_previews($this->get_quiz());
         return $slots;
     }
 
@@ -1160,7 +1201,7 @@ class structure {
                 'firstslotnumber' => $firstslot->slot,
                 'firstslotid' => $firstslot->id,
                 'title' => $section->heading,
-            ]
+            ],
         ]);
         $event->trigger();
 
@@ -1187,8 +1228,8 @@ class structure {
                 'quizid' => $this->get_quizid(),
                 'firstslotid' => $firstslot ? $firstslot->id : null,
                 'firstslotnumber' => $firstslot ? $firstslot->slot : null,
-                'newtitle' => $newheading
-            ]
+                'newtitle' => $newheading,
+            ],
         ]);
         $event->trigger();
     }
@@ -1211,8 +1252,8 @@ class structure {
             'other' => [
                 'quizid' => $this->get_quizid(),
                 'firstslotnumber' => $section->firstslot,
-                'shuffle' => $shuffle
-            ]
+                'shuffle' => $shuffle,
+            ],
         ]);
         $event->trigger();
     }
@@ -1237,8 +1278,8 @@ class structure {
             'other' => [
                 'quizid' => $this->get_quizid(),
                 'firstslotid' => $firstslot->id,
-                'firstslotnumber' => $firstslot->slot
-            ]
+                'firstslotnumber' => $firstslot->slot,
+            ],
         ]);
         $event->trigger();
     }
@@ -1277,5 +1318,86 @@ class structure {
           use the new structure instead.', DEBUG_DEVELOPER);
         // All the associated code for this method have been removed to get rid of accidental call or errors.
         return [];
+    }
+
+    /**
+     * Change the number of questions to pick for a section.
+     * @param int $id the id of the section to change.
+     * @param int $numberofquestions the number of questions to pick in this section.
+     */
+    public function set_section_questionstopick($id, $numberofquestions) {
+        global $DB;
+        $section = $DB->get_record('quiz_sections', ['id' => $id], '*', MUST_EXIST);
+        $section->numberofquestionstopick = $numberofquestions;
+        $DB->update_record('quiz_sections', $section);
+    }
+
+    /**
+     * Change the overall mark for a section.
+     * @param int $id the id of the section to change.
+     * @param int $overallmark the overall mark in this section.
+     */
+    public function set_section_overallmark($id, $overallmark) {
+        global $DB;
+        $section = $DB->get_record('quiz_sections', ['id' => $id], '*', MUST_EXIST);
+        $section->overallmark = $overallmark;
+        $DB->update_record('quiz_sections', $section);
+    }
+
+    /**
+     * Divide overall mark between section's questions.
+     * @param int $id the id of the section to change.
+     * @param int $overallmark the overall mark in this section.
+     * @param int $questionstopick the number of questions to pick in this section.
+     */
+    public function divide_overallmark($id, $overallmark, $questionstopick) {
+        $markforaslot = $overallmark / $questionstopick;
+        $slots = $this->get_slots_in_section($id);
+        foreach ($slots as $slotno) {
+            $slot = $this->get_slot_by_number($slotno);
+            if ($this->is_real_question($slotno)) {
+                $this->update_slot_maxmark($slot, $markforaslot);
+            }
+        }
+    }
+
+
+    /**
+     * Is this slot is bigger then the questions to pick in this section + 1?
+     * @param int $slotnumber the index of the slot in question.
+     * @return bool whether this slot the last one on its section.
+     */
+    public function slot_less_than_choice_questions($slotnumber) {
+        if (!$this->slotsinorder[$slotnumber]->section->numberofquestionstopick ||
+            $this->slotsinorder[$slotnumber]->section->numberofquestionstopick == 0) {
+            return false;
+        }
+        return $this->slotsinorder[$slotnumber]->numberinsection <=
+            $this->slotsinorder[$slotnumber]->section->numberofquestionstopick + 1;
+    }
+
+    /**
+     * Renames sections with headings that were created by the system to "Section X" by order of appearence.
+     */
+    public function rename_sections() {
+        global $DB;
+        $quizid = $this->get_quizid();
+        $sectionstonamesql = "SELECT *
+                                 FROM {quiz_sections}
+                                 WHERE quizid = :quizid and (substr(heading,1,char_length(heading)-2) = :defaultheading
+                                                                 or heading = :defaultheading2)
+                                 ORDER BY firstslot";
+        $defaultheading = get_string('newsectionheading',  'quiz');
+        // I use 2 params with the same value because I have to check the old sections, already with the number suffix,
+        // and the new insertred section without it.
+        $params = ['quizid' => $quizid, 'defaultheading' => $defaultheading, 'defaultheading2' => $defaultheading];
+        $sectionstoname = $DB->get_recordset_sql($sectionstonamesql, $params);
+        $sectionno = 1;
+        foreach ($sectionstoname as $section) {
+            $section->heading = get_string('newsectionheading', 'quiz') .' ' .$sectionno;
+            $DB->update_record('quiz_sections', $section);
+            $sectionno++;
+        }
+
     }
 }

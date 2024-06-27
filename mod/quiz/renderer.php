@@ -366,6 +366,10 @@ class mod_quiz_renderer extends plugin_renderer_base {
         }
         $extrainfo[] = html_writer::tag('span', $flaglabel, array('class' => 'flagstate'));
 
+        if ($button->picked) {
+            $classes[] = 'picked';
+        }
+
         if (is_numeric($button->number)) {
             $qnostring = 'questionnonav';
         } else {
@@ -403,6 +407,10 @@ class mod_quiz_renderer extends plugin_renderer_base {
             $class = '';
         }
         return $this->heading($headingtext, 3, 'mod_quiz-section-heading' . $class);
+    }
+
+    protected function render_quiz_nav_section_pick_info(quiz_nav_section_pick_info $pickinfo) {
+        return html_writer::tag('p', $pickinfo->pickinfo, array('class' => 'mod_quiz-section-pick_info'));
     }
 
     /**
@@ -449,12 +457,12 @@ class mod_quiz_renderer extends plugin_renderer_base {
      * @param int $nextpage The number of the next page
      * @return string HTML to output.
      */
-    public function attempt_page($attemptobj, $page, $accessmanager, $messages, $slots, $id,
-            $nextpage) {
+    public function attempt_page($attemptobj, $page, $accessmanager, $preventaccessmessages, $slots, $id,
+            $nextpage, $navmethod, $attemptsallowed, $shuffleanswers,$shufflequestions) {
         $output = '';
         $output .= $this->header();
         $output .= $this->during_attempt_tertiary_nav($attemptobj->view_url());
-        $output .= $this->quiz_notices($messages);
+        $output .= $this->quiz_notices($preventaccessmessages, $navmethod, $attemptsallowed, $shuffleanswers,$shufflequestions);
         $output .= $this->countdown_timer($attemptobj, time());
         $output .= $this->attempt_form($attemptobj, $page, $slots, $id, $nextpage);
         $output .= $this->footer();
@@ -483,7 +491,7 @@ class mod_quiz_renderer extends plugin_renderer_base {
     /**
      * Returns any notices.
      *
-     * @param array $messages
+     * @param array $preventaccessmessages - access privaion concerned messages
      */
     public function quiz_notices($messages) {
         if (!$messages) {
@@ -714,7 +722,23 @@ class mod_quiz_renderer extends plugin_renderer_base {
                     $heading = get_string('sectionnoname', 'quiz');
                     $rowclasses .= ' dimmed_text';
                 }
-                $cell = new html_table_cell(format_string($heading));
+		        $requiredquestions = $attemptobj->section_no_of_questions_to_pick($slot);
+                if ($attemptobj->get_navigation_method() == QUIZ_NAVMETHOD_FREE && $requiredquestions) {
+                    $a = new stdClass();
+                    $a->requiredquestions = $requiredquestions;
+                    $a->pickedquestions = count($attemptobj->picked_questions($slot));
+                    $pickspanclass = 'pickspan';
+                    if ($a->pickedquestions < $a->requiredquestions) {
+                        $questions_to_pick = get_string('notenoughquestions', 'quiz', $a);
+                        $pickspanclass = 'pickspanred';
+                    } else {
+                        $questions_to_pick = get_string('enoughquestions', 'quiz', $a);
+                    }
+                    $pick_text = html_writer::tag('span', $questions_to_pick, array('class' => $pickspanclass));
+                } else {
+                    $pick_text = '';
+                }
+                $cell = new html_table_cell(format_string($heading) .'  ' .$pick_text);
                 $cell->header = true;
                 $cell->colspan = $tablewidth;
                 $table->data[] = array($cell);
@@ -733,13 +757,18 @@ class mod_quiz_renderer extends plugin_renderer_base {
                 $flag = html_writer::empty_tag('img', array('src' => $this->image_url('i/flagged'),
                         'alt' => get_string('flagged', 'question'), 'class' => 'questionflag icon-post'));
             }
+            if ($attemptobj->is_question_picked($slot)) {
+                $picked_question = html_writer::tag('span', get_string('questionpicked', 'quiz'), array('class' => 'pickspan'));
+            } else {
+                $picked_question = '';
+            }
             if ($attemptobj->can_navigate_to($slot)) {
                 $row = array(html_writer::link($attemptobj->attempt_url($slot),
                         $attemptobj->get_question_number($slot) . $flag),
-                        $attemptobj->get_question_status($slot, $displayoptions->correctness));
+                            $attemptobj->get_question_status($slot, $displayoptions->correctness).$picked_question);
             } else {
                 $row = array($attemptobj->get_question_number($slot) . $flag,
-                                $attemptobj->get_question_status($slot, $displayoptions->correctness));
+                                $attemptobj->get_question_status($slot, $displayoptions->correctness.$picked_question));
             }
             if ($markscolumn) {
                 $row[] = $attemptobj->get_question_mark($slot);
@@ -1242,8 +1271,12 @@ class mod_quiz_renderer extends plugin_renderer_base {
                 $a = new stdClass();
                 $a->grade = quiz_format_grade($quiz, $viewobj->mygrade);
                 $a->maxgrade = quiz_format_grade($quiz, $quiz->grade);
-                $a = get_string('outofshort', 'quiz', $a);
-                $resultinfo .= $this->heading(get_string('yourfinalgradeis', 'quiz', $a), 3);
+                if (!(is_null($viewobj->mygrade))) {
+                    $a = get_string('outofshort', 'quiz', $a);
+                    $resultinfo .= $this->heading(get_string('yourfinalgradeis', 'quiz', $a), 3);
+                } else {
+                    $resultinfo .= $this->heading(get_string('yourfinalgradeisnot', 'quiz'), 3);
+                }
             }
         }
 
@@ -1410,6 +1443,20 @@ class mod_quiz_renderer extends plugin_renderer_base {
         return html_writer::tag('div', $warning,
                     array('id' => 'connection-error', 'style' => 'display: none;', 'role' => 'alert')) .
                     html_writer::tag('div', $ok, array('id' => 'connection-ok', 'style' => 'display: none;', 'role' => 'alert'));
+    }
+
+    /**
+     * Display a quiz's section heading.
+     *
+     * @param  $heading the heading.
+     * @return string HTML fragment.
+     */
+    public function render_quiz_section_heading($heading) {
+        return $this->output->heading($heading, 3, 'mod_quiz-startsection');
+    }
+
+    public function render_quiz_section_questions_pick($questionspick) {
+        return $this->output->box($questionspick,'mod_quiz-section-questionspick');
     }
 }
 

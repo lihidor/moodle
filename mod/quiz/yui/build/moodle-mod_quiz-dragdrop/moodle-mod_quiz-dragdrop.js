@@ -33,7 +33,8 @@ var CSS = {
 // The CSS selectors we use.
 SELECTOR = {
     PAGE: 'li.page',
-    SLOT: 'li.slot'
+    SLOT: 'li.slot',
+    SUMMARKS: 'span.mod_quiz_summarks'
 };
 /**
  * Section drag and drop.
@@ -451,6 +452,13 @@ Y.extend(DRAGRESOURCE, M.core.dragdrop, {
                     var responsetext = Y.JSON.parse(response.responseText);
                     var params = {element: dragnode, visible: responsetext.visible};
                     M.mod_quiz.quizbase.invoke_function('set_visibility_resource_ui', params);
+                    if (responsetext.maxmark) {
+                        Y.Moodle.mod_quiz.util.slot.updateslotMaxMark(Y, dragnode, responsetext.maxmark);
+                    }
+                    if (responsetext.hasOwnProperty('newsummarks')) {
+                        Y.one(SELECTOR.SUMMARKS).setHTML(responsetext.newsummarks);
+                    }
+                    Y.Moodle.mod_quiz.util.slot.updateslotClass(Y, dragnode, responsetext.section_overall_mark);
                     this.unlock_drag_handle(drag, CSS.EDITINGMOVE);
                     window.setTimeout(function() {
                         spinner.hide();

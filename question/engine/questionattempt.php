@@ -179,6 +179,12 @@ class question_attempt {
     /** @var question_usage_observer tracks changes to the useage this attempt is part of.*/
     protected $observer;
 
+    /** @var boolean whether the user has picked this question to be checked (considered in the grade). */
+    protected $picked = false;
+
+    /** @var boolean whether the question has been calculated in the grade. */
+    protected $calculated = false;
+
     /**#@+
      * Constants used by the intereaction models to indicate whether the current
      * pending step should be kept or discarded.
@@ -369,6 +375,16 @@ class question_attempt {
 
     /**
      * Get the name (in the sense a HTML name="" attribute, or a $_POST variable
+     * name) to use for the field that indicates whether this question is picked.
+     *
+     * @return string The field name to use.
+     */
+    public function get_pick_field_name() {
+        return $this->get_control_field_name('picked');
+    }
+
+    /**
+     * Get the name (in the sense a HTML name="" attribute, or a $_POST variable
      * name) to use for a question_type variable belonging to this question_attempt.
      *
      * See the comment on {@link question_attempt_step} for an explanation of
@@ -405,6 +421,34 @@ class question_attempt {
      */
     public function get_field_prefix() {
         return 'q' . $this->usageid . ':' . $this->slot . '_';
+    }
+
+    /**
+     * Set the picked state of this question.
+     * @param bool $picked the new state.
+     */
+    public function set_picked($picked) {
+        $this->picked = $picked;
+        $this->observer->notify_attempt_modified($this);
+    }
+
+    /** @return bool whether this question is currently picked. */
+    public function is_picked() {
+        return $this->picked;
+    }
+
+    /**
+     * Set the calculated state of this question.
+     * @param bool $calculated the new state.
+     */
+    public function set_calculated($calculated) {
+        $this->calculated = $calculated;
+        $this->observer->notify_attempt_modified($this);
+    }
+
+    /** @return bool whether this question is calculated in the grade. */
+    public function is_calculated() {
+        return $this->calculated;
     }
 
     /**
@@ -1621,6 +1665,8 @@ class question_attempt {
         $qa->minfraction = $record->minfraction + 0;
         $qa->maxfraction = $record->maxfraction + 0;
         $qa->set_flagged($record->flagged);
+        $qa->set_picked($record->picked);
+        $qa->set_calculated($record->calculated);
         $qa->questionsummary = $record->questionsummary;
         $qa->rightanswer = $record->rightanswer;
         $qa->responsesummary = $record->responsesummary;
@@ -1708,6 +1754,24 @@ class question_attempt {
     public function get_steps_with_submitted_response_iterator() {
         return new question_attempt_steps_with_submitted_response_iterator($this);
     }
+
+    function is_slot_pickable($quiz, $slot){
+     global $DB;
+     $sections = $DB->get_records('quiz_sections', array('quizid' => $quiz),'id desc', 'id, firstslot, numberofquestionstopick, overallmark');
+     $lastquizslot_sql = "SELECT id FROM {quiz_slots} WHERE quizid = ? ORDER BY id desc LIMIT 1";
+     $lastslot = $DB->get_field_sql($lastquizslot_sql, array('quizid' => $quiz));
+     foreach ($sections as $section){
+             $section->lastslot = $lastslot;
+             $lastslot = $section->firstslot-1;
+             }
+     foreach ($sections as $section) {
+              if($slot >= $section->firstslot && $slot <= $section->lastslot) {
+                 return $section->numberofquestionstopick;
+        }
+     }
+    return null;
+    }
+
 }
 
 

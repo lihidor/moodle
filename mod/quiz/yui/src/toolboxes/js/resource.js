@@ -560,8 +560,10 @@ Y.extend(RESOURCETOOLBOX, TOOLBOX, {
         Y.Moodle.mod_quiz.util.slot.reorderSlots();
         Y.Moodle.mod_quiz.util.slot.reorderPageBreaks();
         Y.Moodle.mod_quiz.util.page.reorderPages();
+        Y.Moodle.mod_quiz.util.page.setActMenuClass();
         Y.Moodle.mod_quiz.util.slot.updateOneSlotSections();
         Y.Moodle.mod_quiz.util.slot.updateAllDependencyIcons();
+        Y.Moodle.mod_quiz.util.slot.updateMinSizeForPickSections();
     },
 
     NAME: 'mod_quiz-resource-toolbox',

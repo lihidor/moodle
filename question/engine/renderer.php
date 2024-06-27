@@ -97,9 +97,18 @@ class core_question_renderer extends plugin_renderer_base {
             ))
         ));
 
+        $output .= html_writer::start_tag('div', array('class' => 'infopick'));
+
         $output .= html_writer::tag('div',
-                $this->info($qa, $behaviouroutput, $qtoutput, $options, $number),
-                array('class' => 'info'));
+            $this->info($qa, $behaviouroutput, $qtoutput, $options, $number),
+            array('class' => 'info'));
+        if ($options->picks && $qa->get_question(false)->get_type_name() <> 'description') {
+            $output .= html_writer::tag('div',
+                $this->question_pick($qa, $options),
+                array('class' => 'pick'));
+        }
+
+        $output .= html_writer::end_tag('div');
 
         $output .= html_writer::start_tag('div', array('class' => 'content'));
 
@@ -111,6 +120,7 @@ class core_question_renderer extends plugin_renderer_base {
                 $this->add_part_heading(get_string('feedback', 'question'),
                     $this->outcome($qa, $behaviouroutput, $qtoutput, $options)),
                 array('class' => 'outcome clearfix'));
+        $output .= $this->picked_calculated_state($qa, $options);
         $output .= html_writer::nonempty_tag('div',
                 $this->add_part_heading(get_string('comments', 'question'),
                     $this->manual_comment($qa, $behaviouroutput, $qtoutput, $options)),
@@ -521,5 +531,80 @@ class core_question_renderer extends plugin_renderer_base {
         } else {
             return '';
         }
+    }
+
+
+    protected function question_pick(question_attempt $qa, $options)
+    {
+        $slot = $qa->get_slot();
+        $pickcontent = '';
+        if ($options->picks[$slot] && (!$options->readonly || $options->showpickbuttoninreadonly)) {
+            $id = $qa->get_pick_field_name();
+            $checkboxattributes = array(
+                'type' => 'checkbox',
+                'id' => $id . 'checkbox',
+                'name' => $id,
+                'value' => 0,
+            );
+            if ($qa->is_picked()) {
+                $checkboxattributes['checked'] = 'checked';
+            }
+            $postdata = question_picks::get_postdata($qa);
+
+            $pickcontent = html_writer::empty_tag('input', array('type' => 'hidden', 'name' => $id, 'value' => 0)) .
+                html_writer::empty_tag('input', $checkboxattributes) .
+                html_writer::empty_tag('input',
+                    array('type' => 'hidden', 'value' => $postdata, 'class' => 'questionpickpostdata'));
+        }
+        return ($pickcontent);
+    }
+
+    protected function get_pick_html($picked, $id = '')
+    {
+        if ($picked) {
+            $alt = get_string('clickunpick', 'mod_quiz');
+            $value = get_string('picked', 'question');
+            $class = 'pickedbutton';
+        } else {
+            $alt = get_string('clickpick', 'mod_quiz');
+            $value = get_string('pick', 'question');
+            $class = 'pickbutton';
+        }
+        $attributes = array(
+            'alt' => $alt,
+            'value' => $value,
+            'class' => $class,
+        );
+        if ($id) {
+            $attributes['id'] = $id;
+        }
+        $button = html_writer::empty_tag('input', array('type' => 'submit', $attributes));
+        return $button;
+    }
+
+    protected function picked_calculated_state(question_attempt $qa, question_display_options $options)
+    {
+        $output = '';
+         if ($options->picks && $options->readonly && !($options->showpickbuttoninreadonly)) {
+                $class = 'calculated';
+                $mandatory_slot = !($options->picks[$qa->get_slot()]) || $options->picks[$qa->get_slot()] == 0;
+                if ($mandatory_slot) {
+                    $q_state_text = get_string('mandatoryquestion', 'question');
+                } else {
+                    if ($qa->is_picked()) {
+                        $q_state_text = get_string('questionpicked', 'question');
+                    } else {
+                        $q_state_text = get_string('questionnotpicked', 'question');
+                    }
+                    if ($qa->is_calculated()) {
+                        $class .= '-calculated';
+                        $q_state_text .= get_string('questioncalculated', 'question');
+                    } else {
+                        $q_state_text .= get_string('questionnotcalculated', 'question');
+                    }
+            }
+            $output = html_writer::nonempty_tag('div', $q_state_text, array('class' => $class));
+         }
+        return ($output);
     }
 }

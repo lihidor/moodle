@@ -25,6 +25,7 @@
 if (!defined('AJAX_SCRIPT')) {
     define('AJAX_SCRIPT', true);
 }
+global $CFG, $PAGE, $DB, $OUTPUT;
 
 require_once(__DIR__ . '/../../config.php');
 require_once($CFG->dirroot . '/mod/quiz/locallib.php');
@@ -48,6 +49,9 @@ $newheading = optional_param('newheading', '', PARAM_TEXT);
 $shuffle    = optional_param('newshuffle', 0, PARAM_INT);
 $page       = optional_param('page', '', PARAM_INT);
 $ids        = optional_param('ids', '', PARAM_SEQUENCE);
+$questionstopick = optional_param('questionstopick', 0, PARAM_INT);
+$overallmark = optional_param('overallmark', '', PARAM_FLOAT);
+
 $PAGE->set_url('/mod/quiz/edit-rest.php',
         array('quizid' => $quizid, 'class' => $class));
 
@@ -98,6 +102,41 @@ switch($requestmethod) {
                         $structure->set_section_shuffle($id, $shuffle);
                         $result = array('instanceshuffle' => $section->shufflequestions);
                         break;
+                    case 'updatenumberofquestionstopick':
+                        require_capability('mod/quiz:manage', $modcontext);
+                        $structure->set_section_questionstopick($id, $questionstopick);
+                        if ($questionstopick == 0) {
+                            $structure->set_section_overallmark($id, 0);
+                        } else {
+                            /* in the first pick - update the section overall mark with default equals the no of questions to pick
+                             * each of the answered questions will get 1 point, as usual, regardless of which questions
+                             * the student preffers to answer
+                            */
+                            if (is_null($overallmark) || $overallmark == 0) {
+                                $structure->set_section_overallmark($id, $questionstopick);
+                                $structure->divide_overallmark($id, $questionstopick, $questionstopick);
+                            } else {
+                                $structure->divide_overallmark($id, $overallmark, $questionstopick);
+                            }
+                            $formattedmarkforaslot = $structure->formatted_question_grade($section->firstslot);
+                        }
+                        quiz_update_sumgrades($quiz);
+                        $result = array('instanceoverallmark' => $overallmark,
+                                        'instancequestionstopick' => $questionstopick,
+                                        'one_slot_mark' => $formattedmarkforaslot,
+                                        'newsummarks' => quiz_format_grade($quiz, $quiz->sumgrades), );
+                        break;
+                    case 'updateoverallmark':
+                        require_capability('mod/quiz:manage', $modcontext);
+                        $structure->set_section_overallmark($id, $overallmark);
+                        $structure->divide_overallmark($id, $overallmark, $questionstopick);
+                        $formattedmarkforaslot = $structure->formatted_question_grade($section->firstslot);
+                        quiz_update_sumgrades($quiz);
+                        $result = array('instanceoverallmark' => $overallmark,
+                                        'instancequestionstopick' => $questionstopick,
+                                        'one_slot_mark' => $formattedmarkforaslot,
+                                        'newsummarks' => quiz_format_grade($quiz, $quiz->sumgrades), );
+                        break;
                 }
                 break;
 
@@ -105,16 +144,20 @@ switch($requestmethod) {
                 switch ($field) {
                     case 'move':
                         require_capability('mod/quiz:manage', $modcontext);
+                        $section = $structure->get_section_by_id($sectionid);
+                        $sectionoverallmark = $structure->is_section_with_questions_pick($section->firstslot);
+                        $formattedmarkforaslot = $structure->formatted_question_grade($section->firstslot);
                         if (!$previousid) {
-                            $section = $structure->get_section_by_id($sectionid);
                             if ($section->firstslot > 1) {
                                 $previousid = $structure->get_slot_id_for_slot($section->firstslot - 1);
                                 $page = $structure->get_page_number_for_slot($section->firstslot);
                             }
                         }
-                        $structure->move_slot($id, $previousid, $page);
+                        $structure->move_slot($id, $previousid, $page, $formattedmarkforaslot);
                         quiz_delete_previews($quiz);
-                        $result = array('visible' => true);
+                        $sumgrades = quiz_update_sumgrades($quiz);
+                        $result = ['visible' => true, 'slotid' => $id, 'maxmark' => $formattedmarkforaslot, 'section_overall_mark' => $sectionoverallmark,
+                            'newsummarks' => $sumgrades, ];
                         break;
 
                     case 'getmaxmark':
@@ -143,8 +186,7 @@ switch($requestmethod) {
                         $slots = $structure->update_page_break($id, $value);
                         $json = array();
                         foreach ($slots as $slot) {
-                            $json[$slot->slot] = array('id' => $slot->id, 'slot' => $slot->slot,
-                                                            'page' => $slot->page);
+                            $json[$slot->slot] = array('id' => $slot->id, 'slot' => $slot->slot, 'page' => $slot->page);
                         }
                         $result = array('slots' => $json);
                         break;
@@ -164,7 +206,7 @@ switch($requestmethod) {
                         quiz_update_sumgrades($quiz);
 
                         $result = array('newsummarks' => quiz_format_grade($quiz, $quiz->sumgrades),
-                                'deleted' => true, 'newnumquestions' => $structure->get_question_count());
+                                'deleted' => true, 'newnumquestions' => $structure->get_question_count(), );
                         break;
 
                     case 'updatedependency':
@@ -203,7 +245,7 @@ switch($requestmethod) {
                 quiz_delete_previews($quiz);
                 quiz_update_sumgrades($quiz);
                 $result = array('newsummarks' => quiz_format_grade($quiz, $quiz->sumgrades),
-                            'deleted' => true, 'newnumquestions' => $structure->get_question_count());
+                            'deleted' => true, 'newnumquestions' => $structure->get_question_count(), );
                 break;
         }
         break;
